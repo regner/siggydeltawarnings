@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 MIN_DELTA = int(os.environ.get('MIN_DELTA', 150))
 MAX_JUMPS = int(os.environ.get('MAX_JUMPS', 20))
 
-HOME_SYSTEM_ID = int(os.environ.get('HOME_SYSTEM_ID'))
+HOME_SYSTEM_ID = int(os.environ.get('HOME_SYSTEM_ID')) 
 SLACK_WEBHOOK = os.environ.get('SLACK_WEBHOOK')
 SIGGY_USERNAME = os.environ.get('SIGGY_USERNAME')
 SIGGY_PASSWORD = os.environ.get('SIGGY_PASSWORD')
@@ -224,7 +224,7 @@ class SiggyDeltaWarnings(object):
             graph[to_id].add(from_id)
 
         results = dijkstra(graph, HOME_SYSTEM_ID, self.high_deltas)
-        # results = dijkstra(graph, HOME_SYSTEM_ID, [30000142, 30002187])
+        #results = dijkstra(graph, HOME_SYSTEM_ID, [30000142, 30002187,30002537,30002062,30002758,30002016,30000304,30003676])
 
         trimmed_results = []
 
@@ -256,6 +256,26 @@ class SiggyDeltaWarnings(object):
 
         return 'http://evemaps.dotlan.net/map/{}#npc_delta'.format(region_name)
 
+    def _sort_route_list(self,routes):
+        #Takes a list of routes and sorts it, first by exit and then by route length. Returns route list.
+        routes_list = []
+        for route in routes:
+            exit_system_id = self._find_exit_from_route(route)
+
+            value = [
+                route[-1],
+                exit_system_id,
+                len(route),
+                route
+            ]
+            routes_list.append(value)
+
+        routes_list.sort(key = lambda l: (l[1], l[2]))
+        routes = []
+        for route in routes_list:
+            routes.append(route[3])
+        return routes
+
     def _format_route_field(self, route):
         system = self.starmap[route[-1]]
         system_link = '<{}|{}>'.format(
@@ -285,6 +305,7 @@ class SiggyDeltaWarnings(object):
         }
 
     def _format_slack_message(self, routes):
+        routes = self._sort_route_list(routes) #sort routes
         title = '*!! High Delta Systems Detected !!*'
 
         return {
@@ -320,6 +341,7 @@ class SiggyDeltaWarnings(object):
                 sleep_time = expire_time - now
                 logger.info('Cache time remaning: {}'.format(sleep_time))
                 time.sleep(60)
+
 
 
 if __name__ == '__main__':
