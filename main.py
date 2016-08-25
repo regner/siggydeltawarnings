@@ -307,7 +307,7 @@ class SiggyDeltaWarnings(object):
             expire_time = expire_time + timedelta(seconds=30)
 
             if now > expire_time:
-                print('Starting the main run...')
+                logger.info('Starting the main run...')
                 self._update_npc_kills()
                 self._update_siggy_data()
 
@@ -318,7 +318,7 @@ class SiggyDeltaWarnings(object):
 
             else:
                 sleep_time = expire_time - now
-                print('Cache time remaning: {}'.format(sleep_time))
+                logger.info('Cache time remaning: {}'.format(sleep_time))
                 time.sleep(60)
 
 
