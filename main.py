@@ -107,7 +107,7 @@ class SiggyDeltaWarnings(object):
         siggy_base_url = 'https://siggy.borkedlabs.com'
         self.login_url = '{}/account/login'.format(siggy_base_url)
         self.siggy_url = '{}/siggy/siggy'.format(siggy_base_url)
-        self.max_security = 0.5
+        self.max_security = 0.45
 
         self.starmap = {}
         self.regions = {}
@@ -257,8 +257,8 @@ class SiggyDeltaWarnings(object):
         return 'http://evemaps.dotlan.net/map/{}#npc_delta'.format(region_name)
 
     def _sort_route_list(self,routes):
-        #Takes a list of routes and sorts it, first by exit and then by route length. Returns route list.
         routes_list = []
+
         for route in routes:
             exit_system_id = self._find_exit_from_route(route)
 
@@ -272,8 +272,10 @@ class SiggyDeltaWarnings(object):
 
         routes_list.sort(key = lambda l: (l[1], l[2]))
         routes = []
+        
         for route in routes_list:
             routes.append(route[3])
+        
         return routes
 
     def _format_route_field(self, route):
@@ -305,7 +307,7 @@ class SiggyDeltaWarnings(object):
         }
 
     def _format_slack_message(self, routes):
-        routes = self._sort_route_list(routes) #sort routes
+        routes = self._sort_route_list(routes)
         title = '*!! High Delta Systems Detected !!*'
 
         return {
