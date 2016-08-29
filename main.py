@@ -168,13 +168,13 @@ class SiggyDeltaWarnings(object):
                 'password': SIGGY_PASSWORD,
             }
 
-            s.post('https://siggy.borkedlabs.com/account/login', data=data)
+            s.post(self.login_url, data=data)
             
             data = {
                 'systemID': 31001744,
-                'lastUpdate': time.time() - 5,
+                'lastUpdate': 0,
                 'mapOpen': True,
-                'mapLastUpdate': time.time() - 5,
+                'mapLastUpdate': 0,
                 'forceUpdate': True,
             }
 
@@ -217,7 +217,7 @@ class SiggyDeltaWarnings(object):
         graph = {}
 
         for k, v in self.starmap.items():
-            graph[k] = v['neighbors']
+            graph[k] = v['neighbors'].copy()
 
         for from_id, to_id in self.wormholes:
             graph[from_id].add(to_id)
@@ -333,7 +333,6 @@ class SiggyDeltaWarnings(object):
                 logger.info('Starting the main run...')
                 # Clearing the wormholes cache as it doesn't seem to get cleared
                 # when we update the Siggy data.
-                self.wormholes = set()
 
                 self._update_npc_kills()
                 self._update_siggy_data()
