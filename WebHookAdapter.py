@@ -20,8 +20,8 @@ class WebHookAdapter(WebHook):
 class SlackWebHook(WebHook):
     def _format_route(self, route):
         return '{} ({}) via {} // {} jumps // {} delta'.format(
-            route['system_link'],
-            route['region_link'],
+            '<{}|{}>'.format(route['system_link'], route['system_name']),
+            '<{}|{}>'.format(route['region_link'], route['region_name']),
             route['wh_system_name'],
             route['distance'],
             route['delta'],
