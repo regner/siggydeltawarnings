@@ -293,7 +293,7 @@ class SiggyDeltaWarnings(object):
         }
 
 
-    def _format_message_discord(self, routes):
+    def _format_message(self, routes):
         routes = self._sort_route_list(routes)
         return self.web_hook.format_message('*!! High Delta Systems Detected !!*', [self._format_route_field(x) for x in routes])
 
@@ -315,7 +315,7 @@ class SiggyDeltaWarnings(object):
                 routes = self._find_high_delta_routes()
 
                 if len(routes) > 0:
-                    requests.post(WEBHOOK_URL, data=self._format_message_discord(routes[:20]))
+                    requests.post(WEBHOOK_URL, data=self._format_message(routes[:20]))
             else:
                 sleep_time = expire_time - now
                 logger.info('Cache time remaning: {}'.format(sleep_time))
