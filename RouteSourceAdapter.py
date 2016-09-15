@@ -1,14 +1,17 @@
 import requests
 
 
-def get_route_source_adapter(type):
-    if (type == 'eve-scout'):
+def get_route_source_adapter(type, **kwargs):
+    if type == 'eve-scout':
         route_source = RouteSourceAdapter(EveScoutSource())
     else:
-        # @todo fix passign the extra parameters
-        route_source = RouteSourceAdapter(SiggySource(SIGGY_USERNAME, SIGGY_PASSWORD, HOME_SYSTEM_ID))
+        missing_arguments = set(["username", "password", "home_system_id"]).difference(set(kwargs.keys()))
+        if len(missing_arguments) > 0:
+            raise RuntimeError("Missing argument for siggy source: {}".format(', '.join(missing_arguments)))
 
-    return web_hook
+        route_source = RouteSourceAdapter(SiggySource(kwargs['username'], kwargs['password'], kwargs['home_system_id']))
+
+    return route_source
 
 class RouteSource:
     def get_routes(self): pass
@@ -20,7 +23,6 @@ class RouteSourceAdapter(RouteSource):
 
     def get_routes(self):
         data = self.adapter.get_routes()
-        print(data)
         return data
 
 class EveScoutSource(RouteSource):

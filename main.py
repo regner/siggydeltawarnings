@@ -14,7 +14,6 @@ from fibonacci_heap_mod import Fibonacci_heap
 from WebHookAdapter import get_webhook_adapter
 from RouteSourceAdapter import get_route_source_adapter
 
-
 logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -51,7 +50,7 @@ def path(prev, start, end):
 
     while u != start:
         s.appendleft(u)
-        
+
         if u not in prev:
             return []
         u = prev[u]
@@ -107,7 +106,7 @@ def dijkstra(graph, start, ends):
 
 class SiggyDeltaWarnings(object):
     def __init__(self, web_hook: WebHookAdapter.WebHook, route_source: RouteSourceAdapter.RouteSource):
-        
+
         self.route_source = route_source
         self.web_hook = web_hook
 
@@ -133,10 +132,10 @@ class SiggyDeltaWarnings(object):
 
         if not os.path.isfile(systems_file):
             raise RuntimeError('missing data: {}'.format(systems_file))
-            
+
         if not os.path.isfile(jumps_file):
             raise RuntimeError('missing data: {}'.format(jumps_file))
-            
+
         if not os.path.isfile(regions_file):
             raise RuntimeError('missing data: {}'.format(regions_file))
 
@@ -300,7 +299,7 @@ class SiggyDeltaWarnings(object):
 
 if __name__ == '__main__':
     web_hook = get_webhook_adapter(WEBHOOK_TYPE)
-    route_source = get_route_source_adapter(SOURCE_TYPE)
+    route_source = get_route_source_adapter(SOURCE_TYPE, username=SIGGY_USERNAME, password=SIGGY_PASSWORD, home_system_id=HOME_SYSTEM_ID)
 
     sdw = SiggyDeltaWarnings(web_hook, route_source)
     sdw.run()
