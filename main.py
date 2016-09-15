@@ -11,6 +11,8 @@ from collections import deque
 from collections import defaultdict
 from datetime import datetime, timedelta
 from fibonacci_heap_mod import Fibonacci_heap
+from WebHookAdapter import get_webhook_adapter
+from RouteSourceAdapter import get_route_source_adapter
 
 
 logging.basicConfig()
@@ -297,15 +299,8 @@ class SiggyDeltaWarnings(object):
 
 
 if __name__ == '__main__':
-    if (WEBHOOK_TYPE == 'discord'):
-        web_hook = WebHookAdapter.WebHookAdapter(WebHookAdapter.DiscordWebHook())
-    else:
-        web_hook = WebHookAdapter.WebHookAdapter(WebHookAdapter.SlackWebHook())
-
-    if (SOURCE_TYPE == 'eve-scout'):
-        route_source = RouteSourceAdapter.RouteSourceAdapter(RouteSourceAdapter.EveScoutSource())
-    else:
-        route_source = RouteSourceAdapter.RouteSourceAdapter(RouteSourceAdapter.SiggySource(SIGGY_USERNAME, SIGGY_PASSWORD, HOME_SYSTEM_ID))
+    web_hook = get_webhook_adapter(WEBHOOK_TYPE)
+    route_source = get_route_source_adapter(SOURCE_TYPE)
 
     sdw = SiggyDeltaWarnings(web_hook, route_source)
     sdw.run()

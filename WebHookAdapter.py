@@ -5,6 +5,15 @@ Simple adapter to format output for a type of chat service.
 """
 
 
+def get_webhook_adapter(type):
+    if (type == 'discord'):
+        web_hook = WebHookAdapter(DiscordWebHook())
+    else:
+        web_hook = WebHookAdapter(SlackWebHook())
+
+    return web_hook
+
+
 class WebHook:
     def format_message(self, msg: str, routes: list): pass
 
