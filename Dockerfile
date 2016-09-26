@@ -3,7 +3,7 @@
 FROM python:3.5.2-alpine
 MAINTAINER Regner Blok-Andersen <shadowdf@gmail.com>
 
-ADD main.py RouteSourceAdapter.py WebHookAdapter.py /app/
+ADD requirements.txt main.py RouteSourceAdapter.py WebHookAdapter.py /app/
 
 WORKDIR /app/
 
