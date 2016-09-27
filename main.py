@@ -1,18 +1,18 @@
-
-
 import os
 import csv
-import json
 import time
 import logging
 import requests
+import WebHookAdapter
+import RouteSourceAdapter
 
 from evelink.map import Map
 from collections import deque
 from collections import defaultdict
 from datetime import datetime, timedelta
 from fibonacci_heap_mod import Fibonacci_heap
-
+from WebHookAdapter import get_webhook_adapter
+from RouteSourceAdapter import get_route_source_adapter
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -20,9 +20,12 @@ logger.setLevel(logging.INFO)
 
 MIN_DELTA = int(os.environ.get('MIN_DELTA', 200))
 MAX_JUMPS = int(os.environ.get('MAX_JUMPS', 15))
+MAX_ROUTES = int(os.environ.get('MAX_ROUTES', 20))
 
-HOME_SYSTEM_ID = int(os.environ.get('HOME_SYSTEM_ID')) 
-SLACK_WEBHOOK = os.environ.get('SLACK_WEBHOOK')
+HOME_SYSTEM_ID = int(os.environ.get('HOME_SYSTEM_ID'))
+WEBHOOK_URL  = os.environ.get('WEBHOOK_URL')
+WEBHOOK_TYPE = os.environ.get('WEBHOOK_TYPE')
+SOURCE_TYPE  = os.environ.get('SOURCE_TYPE')
 SIGGY_USERNAME = os.environ.get('SIGGY_USERNAME')
 SIGGY_PASSWORD = os.environ.get('SIGGY_PASSWORD')
 
@@ -31,14 +34,15 @@ missing_env_text = 'Missing required environment variable {}.'
 if HOME_SYSTEM_ID is None:
     raise RuntimeError(missing_env_text.format('HOME_SYSTEM_ID'))
 
-if SLACK_WEBHOOK is None:
-    raise RuntimeError(missing_env_text.format('SLACK_WEBHOOK'))
+if WEBHOOK_URL is None:
+    raise RuntimeError(missing_env_text.format('WEBHOOK_URL'))
 
-if SIGGY_USERNAME is None:
-    raise RuntimeError(missing_env_text.format('SIGGY_USERNAME'))
+if SOURCE_TYPE != 'eve-scout':
+    if SIGGY_USERNAME is None:
+        raise RuntimeError(missing_env_text.format('SIGGY_USERNAME'))
 
-if SIGGY_PASSWORD is None:
-    raise RuntimeError(missing_env_text.format('SIGGY_PASSWORD'))
+    if SIGGY_PASSWORD is None:
+        raise RuntimeError(missing_env_text.format('SIGGY_PASSWORD'))
 
 
 def path(prev, start, end):
@@ -47,7 +51,7 @@ def path(prev, start, end):
 
     while u != start:
         s.appendleft(u)
-        
+
         if u not in prev:
             return []
         u = prev[u]
@@ -102,11 +106,11 @@ def dijkstra(graph, start, ends):
 
 
 class SiggyDeltaWarnings(object):
-    def __init__(self):
-        
-        siggy_base_url = 'https://siggy.borkedlabs.com'
-        self.login_url = '{}/account/login'.format(siggy_base_url)
-        self.siggy_url = '{}/siggy/siggy'.format(siggy_base_url)
+    def __init__(self, web_hook: WebHookAdapter.WebHook, route_source: RouteSourceAdapter.RouteSource):
+
+        self.route_source = route_source
+        self.web_hook = web_hook
+
         self.max_security = 0.45
 
         self.starmap = {}
@@ -129,10 +133,10 @@ class SiggyDeltaWarnings(object):
 
         if not os.path.isfile(systems_file):
             raise RuntimeError('missing data: {}'.format(systems_file))
-            
+
         if not os.path.isfile(jumps_file):
             raise RuntimeError('missing data: {}'.format(jumps_file))
-            
+
         if not os.path.isfile(regions_file):
             raise RuntimeError('missing data: {}'.format(regions_file))
 
@@ -161,38 +165,11 @@ class SiggyDeltaWarnings(object):
             for region in regions_csv:
                 self.regions[int(region['regionID'])] = region['regionName']
 
-    def _update_siggy_data(self):
-        with requests.session() as s:
-            data = {
-                'username': SIGGY_USERNAME,
-                'password': SIGGY_PASSWORD,
-            }
-
-            s.post(self.login_url, data=data)
-            
-            data = {
-                'systemID': 31001744,
-                'lastUpdate': 0,
-                'mapOpen': True,
-                'mapLastUpdate': 0,
-                'forceUpdate': True,
-            }
-
-            response = s.post(self.siggy_url, data=data)
-            siggy_data = response.json()
-
-            wormholes = set()
-            for wh in siggy_data['chainMap']['wormholes'].values():
-                wormholes.add((
-                    int(wh['from_system_id']),
-                    int(wh['to_system_id'])
-                ))
-
-            self.wormholes = wormholes
-
-            for k, v in siggy_data['chainMap']['systems'].items():
-                if v['displayName'] is not '':
-                    self.starmap[int(k)]['name'] = v['displayName']
+    def _update_route_data(self):
+            for (names, wh) in self.route_source.get_routes():
+                self.starmap[wh[0]]['name'] = names[0]
+                self.starmap[wh[1]]['name'] = names[1]
+                self.wormholes.add(wh)
 
     def _update_npc_kills(self):
         kills = Map().kills_by_system()
@@ -224,8 +201,6 @@ class SiggyDeltaWarnings(object):
             graph[to_id].add(from_id)
 
         results = dijkstra(graph, HOME_SYSTEM_ID, self.high_deltas)
-        #results = dijkstra(graph, HOME_SYSTEM_ID, [30000142, 30002187,30002537,30002062,30002758,30002016,30000304,30003676])
-
         trimmed_results = []
 
         for route in results:
@@ -272,55 +247,30 @@ class SiggyDeltaWarnings(object):
 
         routes_list.sort(key = lambda l: (l[1], l[2]))
         routes = []
-        
+
         for route in routes_list:
             routes.append(route[3])
-        
+
         return routes
 
     def _format_route_field(self, route):
         system = self.starmap[route[-1]]
-        system_link = '<{}|{}>'.format(
-            self._format_dotlan_system_link(route[-1]),
-            system['name']
-        )
-
-        region_link = '<{}|{}>'.format(
-            self._format_dotlan_region_link(system['regionID']),
-            self.regions[system['regionID']]
-        )
-
         exit_system_id = self._find_exit_from_route(route)
 
-
-        value = '{} ({}) via {} // {} jumps // {} delta'.format(
-            system_link,
-            region_link,
-            self.starmap[exit_system_id]['name'],
-            len(route),
-            self.npc_deltas[route[-1]]
-        )
-
         return {
-            'value': value,
-            'short': False,
+            'system_link': self._format_dotlan_system_link(route[-1]),
+            'system_name': system['name'],
+            'region_link': self._format_dotlan_region_link(system['regionID']),
+            'region_name': self.regions[system['regionID']],
+            'wh_system_name': self.starmap[exit_system_id]['name'],
+            'distance': len(route),
+            'delta': self.npc_deltas[route[-1]],
         }
 
-    def _format_slack_message(self, routes):
+
+    def _format_message(self, routes):
         routes = self._sort_route_list(routes)
-        title = '*!! High Delta Systems Detected !!*'
-
-        return {
-            'attachments': [
-                {
-                    'color': 'good',
-                    'pretext': title,
-                    'fallback': title,
-                    'mrkdwn_in': ['pretext', 'fields'],
-                    'fields': [self._format_route_field(x) for x in routes],
-                }
-            ]
-        }
+        return self.web_hook.format_message('*!! High Delta Systems Detected !!*', [self._format_route_field(x) for x in routes])
 
     def run(self):
         while True:
@@ -335,14 +285,12 @@ class SiggyDeltaWarnings(object):
                 # when we update the Siggy data.
 
                 self._update_npc_kills()
-                self._update_siggy_data()
+                self._update_route_data()
 
                 routes = self._find_high_delta_routes()
 
                 if len(routes) > 0:
-                    slack_msg = self._format_slack_message(routes)
-                    requests.post(SLACK_WEBHOOK, data=json.dumps(slack_msg))
-
+                    requests.post(WEBHOOK_URL, data=self._format_message(routes[:MAX_ROUTES]))
             else:
                 sleep_time = expire_time - now
                 logger.info('Cache time remaning: {}'.format(sleep_time))
@@ -351,5 +299,8 @@ class SiggyDeltaWarnings(object):
 
 
 if __name__ == '__main__':
-    sdw = SiggyDeltaWarnings()
+    web_hook = get_webhook_adapter(WEBHOOK_TYPE)
+    route_source = get_route_source_adapter(SOURCE_TYPE, username=SIGGY_USERNAME, password=SIGGY_PASSWORD, home_system_id=HOME_SYSTEM_ID)
+
+    sdw = SiggyDeltaWarnings(web_hook, route_source)
     sdw.run()
