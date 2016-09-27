@@ -20,6 +20,7 @@ logger.setLevel(logging.INFO)
 
 MIN_DELTA = int(os.environ.get('MIN_DELTA', 200))
 MAX_JUMPS = int(os.environ.get('MAX_JUMPS', 15))
+MAX_ROUTES = int(os.environ.get('MAX_ROUTES', 20))
 
 HOME_SYSTEM_ID = int(os.environ.get('HOME_SYSTEM_ID'))
 WEBHOOK_URL  = os.environ.get('WEBHOOK_URL')
@@ -289,7 +290,7 @@ class SiggyDeltaWarnings(object):
                 routes = self._find_high_delta_routes()
 
                 if len(routes) > 0:
-                    requests.post(WEBHOOK_URL, data=self._format_message(routes[:20]))
+                    requests.post(WEBHOOK_URL, data=self._format_message(routes[:MAX_ROUTES]))
             else:
                 sleep_time = expire_time - now
                 logger.info('Cache time remaning: {}'.format(sleep_time))
